@@ -49,8 +49,22 @@ jobs:
 
       
 
+      - name: Download and install Gradle
+        shell: bash
+        run: |
+          set -e
+          curl -fL --retry 5 --retry-all-errors \
+            --retry-delay 10 \
+            --connect-timeout 30 \
+            --max-time 600 \
+            https://services.gradle.org/distributions/gradle-8.14.5-bin.zip \
+            -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-8.14.5/bin" >> "$GITHUB_PATH"
+
       - name: Build debug APK
-        run: bash ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
+
 
 
       - name: Upload APK
