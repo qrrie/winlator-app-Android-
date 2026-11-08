@@ -1,5 +1,4 @@
 
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <item name="menu_item_usb_test" type="id"/>
+    <item name="menu_item_usb_test" type="id" />
 </resources>
