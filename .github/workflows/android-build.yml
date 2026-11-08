@@ -1,0 +1,39 @@
+
+name: Build Winlator USB APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - usb-bridge-v01
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winlator-USB-Debug-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
