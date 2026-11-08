@@ -62,8 +62,11 @@ jobs:
           unzip -q /tmp/gradle.zip -d /opt
           echo "/opt/gradle-8.14.5/bin" >> "$GITHUB_PATH"
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+      - - name: Build debug APK
+  env:
+    ANDROID_HOME: /home/runner/android-sdk
+    ANDROID_SDK_ROOT: /home/runner/android-sdk
+  run: gradle assembleDebug --stacktrace
 
 
 
