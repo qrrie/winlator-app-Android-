@@ -1,5 +1,5 @@
 
-name: Android Build
+name: Build Winlator USB APK
 
 on:
   workflow_dispatch:
@@ -23,16 +23,32 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android tools
+      - name: Install Android SDK
+        shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;24.0.8215888"
-
-      - name: Make Gradle executable
-        run: chmod +x gradlew
+          set -e
+          export ANDROID_HOME="$HOME/android-sdk"
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -fL --retry 3 \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+            -o /tmp/android-tools.zip
+          unzip -q /tmp/android-tools.zip \
+            -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" \
+            "$ANDROID_HOME/cmdline-tools/latest"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$ANDROID_HOME" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$ANDROID_HOME" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1" \
+            "ndk;24.0.8215888"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: bash ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
