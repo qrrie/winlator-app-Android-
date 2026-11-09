@@ -1,68 +1,106 @@
 
-apply plugin: 'com.android.application'
 
-android {
-    namespace 'com.winlator'
-    compileSdk 35
+name: Build Winlator USB APK
 
-    defaultConfig {
-        applicationId 'com.winlator'
-        minSdkVersion 26
-        targetSdkVersion 28
-        versionCode 34
-        versionName "11.2-USB-v0.2"
-    }
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - usb-bridge-v01
 
-    signingConfigs {
-        release {
-            storeFile file("$rootDir/winlator-release.jks")
-            storePassword System.getenv("WINLATOR_STORE_PASSWORD")
-            keyAlias System.getenv("WINLATOR_KEY_ALIAS")
-            keyPassword System.getenv("WINLATOR_KEY_PASSWORD") ?: System.getenv("WINLATOR_STORE_PASSWORD")
-        }
-    }
+jobs:
+  build:
+    runs-on: ubuntu-22.04
 
-    buildTypes {
-        debug {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+    permissions:
+      contents: read
 
-            ndk {
-                abiFilters 'arm64-v8a'
-            }
-        }
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-            ndk {
-                abiFilters 'arm64-v8a'
-            }
-        }
-    }
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -e
+          export ANDROID_HOME="$HOME/android-sdk"
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
 
-    lintOptions {
-        checkReleaseBuilds false
-    }
+          curl -fL --retry 3 \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+            -o /tmp/android-tools.zip
 
-    ndkVersion '24.0.8215888'
+          unzip -q /tmp/android-tools.zip \
+            -d "$ANDROID_HOME/cmdline-tools"
 
-    externalNativeBuild {
-        cmake {
-            version '3.22.1'
-            path 'src/main/cpp/CMakeLists.txt'
-        }
-    }
-}
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" \
+            "$ANDROID_HOME/cmdline-tools/latest"
 
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.4.0'
-    implementation 'androidx.preference:preference:1.2.1'
-    implementation 'com.google.android.material:material:1.4.0'
-    implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
-    implementation 'org.tukaani:xz:1.7'
-    implementation 'org.apache.commons:commons-compress:1.20'
-    implementation 'androidx.lifecycle:lifecycle-process:2.5.1'
-}
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$ANDROID_HOME" --licenses || true
+
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$ANDROID_HOME" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1" \
+            "ndk;24.0.8215888"
+
+      - name: Download and install Gradle
+        shell: bash
+        run: |
+          set -e
+
+          curl -fL --retry 5 --retry-all-errors \
+            --retry-delay 10 \
+            --connect-timeout 30 \
+            --max-time 600 \
+            https://services.gradle.org/distributions/gradle-8.14.5-bin.zip \
+            -o /tmp/gradle.zip
+
+          unzip -q /tmp/gradle.zip -d /opt
+
+          echo "/opt/gradle-8.14.5/bin" >> "$GITHUB_PATH"
+
+      - name: Restore permanent signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WINLATOR_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > winlator-release.jks
+          test -s winlator-release.jks
+
+      - name: Build signed release APK
+        env:
+          ANDROID_HOME: /home/runner/android-sdk
+          ANDROID_SDK_ROOT: /home/runner/android-sdk
+          WINLATOR_STORE_PASSWORD: ${{ secrets.WINLATOR_STORE_PASSWORD }}
+          WINLATOR_KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
+          WINLATOR_KEY_PASSWORD: ${{ secrets.WINLATOR_KEY_PASSWORD }}
+        run: gradle assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winlator-Permanent-Signed-APK
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
