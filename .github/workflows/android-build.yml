@@ -1,78 +1,68 @@
 
-name: Build Winlator USB APK
+apply plugin: 'com.android.application'
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - usb-bridge-v01
+android {
+    namespace 'com.winlator'
+    compileSdk 35
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: read
+    defaultConfig {
+        applicationId 'com.winlator'
+        minSdkVersion 26
+        targetSdkVersion 28
+        versionCode 34
+        versionName "11.2-USB-v0.2"
+    }
 
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+    signingConfigs {
+        release {
+            storeFile file("$rootDir/winlator-release.jks")
+            storePassword System.getenv("WINLATOR_STORE_PASSWORD")
+            keyAlias System.getenv("WINLATOR_KEY_ALIAS")
+            keyPassword System.getenv("WINLATOR_KEY_PASSWORD") ?: System.getenv("WINLATOR_STORE_PASSWORD")
+        }
+    }
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+    buildTypes {
+        debug {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 
-      - name: Install Android SDK
-        shell: bash
-        run: |
-          set -e
-          export ANDROID_HOME="$HOME/android-sdk"
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          curl -fL --retry 3 \
-            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
-            -o /tmp/android-tools.zip
-          unzip -q /tmp/android-tools.zip \
-            -d "$ANDROID_HOME/cmdline-tools"
-          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" \
-            "$ANDROID_HOME/cmdline-tools/latest"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$ANDROID_HOME" --licenses || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$ANDROID_HOME" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "cmake;3.22.1" \
-            "ndk;24.0.8215888"
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
 
-      
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 
-      - name: Download and install Gradle
-        shell: bash
-        run: |
-          set -e
-          curl -fL --retry 5 --retry-all-errors \
-            --retry-delay 10 \
-            --connect-timeout 30 \
-            --max-time 600 \
-            https://services.gradle.org/distributions/gradle-8.14.5-bin.zip \
-            -o /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.14.5/bin" >> "$GITHUB_PATH"
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
 
+    lintOptions {
+        checkReleaseBuilds false
+    }
 
-      - name: Build debug APK
-        env:
-          ANDROID_HOME: /home/runner/android-sdk
-          ANDROID_SDK_ROOT: /home/runner/android-sdk
-        run: gradle assembleDebug --stacktrace
+    ndkVersion '24.0.8215888'
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Winlator-USB-Bridge-APK
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+    externalNativeBuild {
+        cmake {
+            version '3.22.1'
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+}
 
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.4.0'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
+    implementation 'org.tukaani:xz:1.7'
+    implementation 'org.apache.commons:commons-compress:1.20'
+    implementation 'androidx.lifecycle:lifecycle-process:2.5.1'
+}
