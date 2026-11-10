@@ -1,4 +1,29 @@
 
+      - name: Check signing key
+        shell: bash
+        env:
+          STORE_PASS: ${{ secrets.WINLATOR_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          test -n "$STORE_PASS" || {
+            echo "::error::Store password secret is missing"
+            exit 1
+          }
+          test -n "$KEY_ALIAS" || {
+            echo "::error::Key alias secret is missing"
+            exit 1
+          }
+          if ! keytool -list \
+            -storetype PKCS12 \
+            -keystore winlator-release.jks \
+            -storepass:env STORE_PASS \
+            -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::GitHub cannot unlock the keystore"
+            exit 1
+          fi
+          echo "KEYSTORE VERIFIED"
+
 
 name: Build Winlator USB APK
 
