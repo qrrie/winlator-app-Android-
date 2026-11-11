@@ -1,6 +1,5 @@
 package com.winlator;
 
-
 import com.winlator.usbbridge.UsbBridgeServer;
 import android.app.Activity;
 import android.app.PictureInPictureParams;
@@ -109,6 +108,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private InputControlsView inputControlsView;
     private TouchpadView touchpadView;
     private XEnvironment environment;
+    private UsbBridgeServer usbBridgeServer;
     private DrawerLayout drawerLayout;
     private Container container;
     private XServer xServer;
@@ -146,6 +146,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
         setContentView(R.layout.xserver_display_activity);
+
+try {
+    usbBridgeServer = new UsbBridgeServer(this);
+    int port = usbBridgeServer.start();
+    android.util.Log.i(
+        "WinlatorUsbBridge",
+        "USB transport listening on localhost port " + port
+    );
+} catch (java.io.IOException e) {
+    android.util.Log.e(
+        "WinlatorUsbBridge",
+        "USB transport failed to start", e
+    );
+    if (usbBridgeServer != null) {
+        usbBridgeServer.close();
+        usbBridgeServer = null;
+    }
+}
+
         ForegroundService.startSession(this);
 
         final PreloaderDialog preloaderDialog = new PreloaderDialog(this);
