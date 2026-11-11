@@ -139,7 +139,33 @@ jobs:
 
           echo "Signing configuration check complete"
 
-      - name: Build signed release APK
+      
+      - name: Install Windows cross-compiler
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Build Windows USB bridge test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p usb-client/build
+          x86_64-w64-mingw32-gcc \
+            -O2 -Wall \
+            usb-client/usb_bridge_test.c \
+            -o usb-client/build/usb_bridge_test.exe \
+            -lws2_32
+          test -s usb-client/build/usb_bridge_test.exe
+
+      - name: Upload Windows USB bridge test
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winlator-USB-Bridge-Test
+          path: usb-client/build/usb_bridge_test.exe
+          if-no-files-found: error
+
+  - name: Build signed release APK
         shell: bash
         env:
           WINLATOR_STORE_PASSWORD: ${{ secrets.WINLATOR_STORE_PASSWORD }}
