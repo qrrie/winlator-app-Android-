@@ -27,7 +27,8 @@ jobs:
       - name: Install Android SDK
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
           export ANDROID_HOME="$HOME/android-sdk"
           mkdir -p "$ANDROID_HOME/cmdline-tools"
 
@@ -58,7 +59,7 @@ jobs:
       - name: Download and install Gradle
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           curl -fL --retry 5 --retry-all-errors \
             --retry-delay 10 \
@@ -68,7 +69,6 @@ jobs:
             -o /tmp/gradle.zip
 
           unzip -q /tmp/gradle.zip -d /opt
-
           echo "/opt/gradle-8.14.5/bin" >> "$GITHUB_PATH"
 
       - name: Restore permanent signing key
@@ -77,25 +77,40 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.WINLATOR_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > winlator-release.jks
+
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::WINLATOR_KEYSTORE_BASE64 is missing"
+            exit 1
+          fi
+
+          printf '%s' "$KEYSTORE_BASE64" \
+            | base64 --decode > winlator-release.jks
+
           test -s winlator-release.jks
 
-      - name: Check signing key
+          echo "Keystore file restored"
+
+      - name: Diagnose signing configuration
         shell: bash
         env:
           STORE_PASS: ${{ secrets.WINLATOR_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.WINLATOR_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
         run: |
           set -euo pipefail
 
           if [ -z "$STORE_PASS" ]; then
-            echo "::error::Store password secret is missing"
+            echo "::error::WINLATOR_STORE_PASSWORD is missing"
             exit 1
           fi
 
           if [ -z "$KEY_ALIAS" ]; then
-            echo "::error::Key alias secret is missing"
+            echo "::error::WINLATOR_KEY_ALIAS is missing"
+            exit 1
+          fi
+
+          if [ "$KEY_ALIAS" != "winlator" ]; then
+            echo "::error::Key alias must be winlator"
             exit 1
           fi
 
@@ -104,11 +119,25 @@ jobs:
             -keystore winlator-release.jks \
             -storepass:env STORE_PASS \
             -alias "$KEY_ALIAS" >/dev/null 2>&1; then
-            echo "::error::GitHub cannot unlock the keystore"
+
+            echo "::error::Keystore password or keystore file does not match"
+            echo "Check WINLATOR_STORE_PASSWORD and WINLATOR_KEYSTORE_BASE64"
             exit 1
           fi
 
-          echo "KEYSTORE VERIFIED"
+          echo "KEYSTORE PASSWORD VERIFIED"
+          echo "KEY ALIAS VERIFIED"
+
+          if [ -z "$KEY_PASS" ]; then
+            echo "Key password not supplied; Gradle will use store password"
+          elif [ "$KEY_PASS" = "$STORE_PASS" ]; then
+            echo "Key password matches store password"
+          else
+            echo "::warning::Key password differs from store password"
+            echo "For this PKCS12 keystore, verify that the key password is correct"
+          fi
+
+          echo "Signing configuration check complete"
 
       - name: Build signed release APK
         shell: bash
@@ -116,11 +145,15 @@ jobs:
           WINLATOR_STORE_PASSWORD: ${{ secrets.WINLATOR_STORE_PASSWORD }}
           WINLATOR_KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
           WINLATOR_KEY_PASSWORD: ${{ secrets.WINLATOR_KEY_PASSWORD }}
-        run: gradle assembleRelease --stacktrace
+        run: |
+          set -euo pipefail
+          gradle assembleRelease --stacktrace
 
       - name: Verify APK signature
         shell: bash
         run: |
+          set -euo pipefail
+
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             verify --verbose --print-certs \
             app/build/outputs/apk/release/app-release.apk
