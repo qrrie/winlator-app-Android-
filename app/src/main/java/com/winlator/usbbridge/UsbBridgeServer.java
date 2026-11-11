@@ -75,7 +75,8 @@ public final class UsbBridgeServer implements AutoCloseable {
             try {
                 Socket socket = server.accept();
                 active = socket;
-                socket.setSoTimeout(5000);
+                socket.setSoTimeout(60000);
+
                 try {
                     serve(socket);
                 } finally {
