@@ -165,7 +165,7 @@ jobs:
           path: usb-client/build/usb_bridge_test.exe
           if-no-files-found: error
 
-  - name: Build signed release APK
+     - name: Build signed release APK
         shell: bash
         env:
           WINLATOR_STORE_PASSWORD: ${{ secrets.WINLATOR_STORE_PASSWORD }}
