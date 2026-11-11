@@ -1,30 +1,4 @@
 
-      - name: Check signing key
-        shell: bash
-        env:
-          STORE_PASS: ${{ secrets.WINLATOR_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
-        run: |
-          set -euo pipefail
-          test -n "$STORE_PASS" || {
-            echo "::error::Store password secret is missing"
-            exit 1
-          }
-          test -n "$KEY_ALIAS" || {
-            echo "::error::Key alias secret is missing"
-            exit 1
-          }
-          if ! keytool -list \
-            -storetype PKCS12 \
-            -keystore winlator-release.jks \
-            -storepass:env STORE_PASS \
-            -alias "$KEY_ALIAS" >/dev/null 2>&1; then
-            echo "::error::GitHub cannot unlock the keystore"
-            exit 1
-          fi
-          echo "KEYSTORE VERIFIED"
-
-
 name: Build Winlator USB APK
 
 on:
@@ -107,10 +81,38 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > winlator-release.jks
           test -s winlator-release.jks
 
-      - name: Build signed release APK
+      - name: Check signing key
+        shell: bash
         env:
-          ANDROID_HOME: /home/runner/android-sdk
-          ANDROID_SDK_ROOT: /home/runner/android-sdk
+          STORE_PASS: ${{ secrets.WINLATOR_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$STORE_PASS" ]; then
+            echo "::error::Store password secret is missing"
+            exit 1
+          fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "::error::Key alias secret is missing"
+            exit 1
+          fi
+
+          if ! keytool -list \
+            -storetype PKCS12 \
+            -keystore winlator-release.jks \
+            -storepass:env STORE_PASS \
+            -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::GitHub cannot unlock the keystore"
+            exit 1
+          fi
+
+          echo "KEYSTORE VERIFIED"
+
+      - name: Build signed release APK
+        shell: bash
+        env:
           WINLATOR_STORE_PASSWORD: ${{ secrets.WINLATOR_STORE_PASSWORD }}
           WINLATOR_KEY_ALIAS: ${{ secrets.WINLATOR_KEY_ALIAS }}
           WINLATOR_KEY_PASSWORD: ${{ secrets.WINLATOR_KEY_PASSWORD }}
