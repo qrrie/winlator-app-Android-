@@ -524,6 +524,19 @@ protected void onDestroy() {
         envVars.put("MESA_DEBUG", "silent");
         envVars.put("MESA_NO_ERROR", "1");
         envVars.put("WINEPREFIX", rootPath+RootFS.WINEPREFIX);
+        
+if (usbBridgeServer != null) {
+    envVars.put("WINLATOR_USB_HOST", "127.0.0.1");
+    envVars.put(
+        "WINLATOR_USB_PORT",
+        String.valueOf(usbBridgeServer.start())
+    );
+    envVars.put(
+        "WINLATOR_USB_TOKEN",
+        usbBridgeServer.token()
+    );
+}
+
         envVars.put("WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER", "1");
 
         boolean enableWineDebug = preferences.getBoolean("enable_wine_debug", false);
