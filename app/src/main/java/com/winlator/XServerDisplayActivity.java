@@ -360,13 +360,19 @@ try {
         ForegroundService.setPipMode(isInPictureInPictureMode);
     }
 
-    @Override
-    protected void onDestroy() {
-        winHandler.stop();
-        if (environment != null) environment.stopEnvironmentComponents();
-        ForegroundService.stopSession(this);
-        super.onDestroy();
+    
+@Override
+protected void onDestroy() {
+    if (usbBridgeServer != null) {
+        usbBridgeServer.close();
+        usbBridgeServer = null;
     }
+    winHandler.stop();
+    if (environment != null) environment.stopEnvironmentComponents();
+    ForegroundService.stopSession(this);
+    super.onDestroy();
+}
+
 
     @Override
     public void onBackPressed() {
